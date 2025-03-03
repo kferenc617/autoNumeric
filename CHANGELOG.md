@@ -1,5 +1,8 @@
 ## Changelog for AutoNumeric
 
+## 4.10.8
++ Updates the npm version that includes the #673 fix
+
 ## 4.10.7
 + Fixes #673 Handle composition events to fix strange behavior during input composition (#797)
 
