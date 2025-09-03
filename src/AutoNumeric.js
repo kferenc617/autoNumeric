@@ -1,8 +1,8 @@
 /**
  *               AutoNumeric.js
  *
- * @version      4.10.8
- * @date         2025-03-03 UTC 08:10
+ * @version      4.10.9
+ * @date         2025-09-03 UTC 09:00
  *
  * @authors      2016-2025 Alexandre Bonneau <alexandre.bonneau@linuxfr.eu>
  *               2009-2016 Bob Knothe <bob.knothe@gmail.com>
@@ -70,7 +70,7 @@ export default class AutoNumeric {
      * @returns {string}
      */
     static version() {
-        return '4.10.8';
+        return '4.10.9';
     }
 
     /**
@@ -6086,7 +6086,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
      * @private
      */
     static _cleanValueForRangeParse(value) {
-        value = value.toString().replace(',', '.');
+        if (!AutoNumericHelper.isNull(value)) {
+            value = value.toString().replace(',', '.');
+        }
 
         return AutoNumericHelper.parseStr(value);
     }
