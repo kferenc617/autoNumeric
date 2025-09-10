@@ -1,5 +1,8 @@
 ## Changelog for AutoNumeric
 
+## 4.10.9
++ Fixes #799 Cannot read properties of null (reading 'toString') in _cleanValueForRangeParse()
+
 ## 4.10.8
 + Updates the npm version that includes the #673 fix
 

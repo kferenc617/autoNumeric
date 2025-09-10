@@ -1086,68 +1086,72 @@ export default class AutoNumericHelper {
      *
      * This function is adapted from Big.js https://github.com/MikeMcl/big.js/. Many thanks to Mike.
      *
-     * @param {number|string} n A numeric value.
+     * @param {number|string} value A numeric value.
      * @returns {{}}
      */
-    static parseStr(n) {
-        const x = {}; // A Big number instance.
+    static parseStr(value) {
+        if (AutoNumericHelper.isUndefinedOrNullOrEmpty(value)) {
+            return { s: 1, e: 0, c: [0] }; // Return the representation for null/undefined
+        }
+
+        const result = {}; // A Big number instance.
         let e;
         let i;
         let nL;
         let j;
 
         // Minus zero?
-        if (n === 0 && 1 / n < 0) {
-            n = '-0';
+        if (value === 0 && 1 / value < 0) {
+            value = '-0';
         }
 
         // Determine sign. 1 positive, -1 negative
-        n = n.toString();
-        if (this.isNegativeStrict(n, '-')) {
-            n = n.slice(1);
-            x.s = -1;
+        value = value.toString();
+        if (this.isNegativeStrict(value, '-')) {
+            value = value.slice(1);
+            result.s = -1;
         } else {
-            x.s = 1;
+            result.s = 1;
         }
 
         // Decimal point?
-        e = n.indexOf('.');
+        e = value.indexOf('.');
         if (e > -1) {
-            n = n.replace('.', '');
+            value = value.replace('.', '');
         }
 
         // Length of string if no decimal character
         if (e < 0) {
             // Integer
-            e = n.length;
+            e = value.length;
         }
 
         // Determine leading zeros
-        i = (n.search(/[1-9]/i) === -1) ? n.length : n.search(/[1-9]/i);
-        nL = n.length;
+        i = (value.search(/[1-9]/i) === -1) ? value.length : value.search(/[1-9]/i);
+        nL = value.length;
         if (i === nL) {
             // Zero
-            x.e = 0;
-            x.c = [0];
+            result.e = 0;
+            result.c = [0];
         } else {
             // Determine trailing zeros
-            for (j = nL - 1; n.charAt(j) === '0'; j -= 1) {
+            for (j = nL - 1; value.charAt(j) === '0'; j -= 1) {
                 nL -= 1;
             }
             nL -= 1;
 
             // Decimal location
-            x.e = e - i - 1;
-            x.c = [];
+            result.e = e - i - 1;
+            result.c = [];
 
             // Convert string to array of digits without leading/trailing zeros
             for (e = 0; i <= nL; i += 1) {
-                x.c[e] = +n.charAt(i);
+                result.c[e] = +value.charAt(i);
                 e += 1;
             }
         }
 
-        return x;
+        return result;
     }
 
     /**

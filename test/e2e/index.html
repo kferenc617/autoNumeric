@@ -1227,6 +1227,15 @@
 			</div>
 		</div>
 	</div>
+
+	<div class="testSuite">
+		<div class="test">
+			<p class="description">Issue #799</p>
+			<div>
+				<input id="issue_799" type="text" placeholder="#799" value="">
+			</div>
+		</div>
+	</div>
 </div>
 <script>
     console.log(`-------------------------------------------`);
@@ -2576,6 +2585,16 @@
         console.log('Form 768 submitted'); //DEBUG
         e.preventDefault();
     }, false);
+
+    //-------------- Issue #799
+    const anOptions799 = {
+        overrideMinMaxLimits: "invalid",
+        emptyInputBehavior  : "null",
+        isCancellable       : false,
+        oninvalidPaste      : "ignore"
+    }
+
+    new AutoNumeric('#issue_799', null, anOptions799);
 </script>
 </body>
 </html>
