@@ -6787,6 +6787,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
                 this._triggerEvent(AutoNumeric.events.native.input, e.target); //TODO instead of adding the event here, generate it from the `_historyTableRedo()` function?
                 this.onGoingRedo = true;
 
+                // if lastVal is updated in the undo branch, it should be update here too, otherwise backspace could delete two chars (enter 1234, ctrl-z, ctrl-y, backspace)
+                this.lastVal = AutoNumericHelper.getElementValue(e.target);
+
                 return;
             } else if (e.ctrlKey && !e.shiftKey) {
                 if (this.onGoingRedo) {
@@ -6798,6 +6801,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
                     this._historyTableUndo();
                     this._triggerEvent(AutoNumeric.events.native.input, e.target); //TODO instead of adding the event here, generate it from the `_historyTableRedo()` function?
 
+                    // lastVal should be updated to properly detect change in the delete/backspace handler above
+                    this.lastVal = AutoNumericHelper.getElementValue(e.target);
+
                     return;
                 }
             }
@@ -6808,6 +6814,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
             this._triggerEvent(AutoNumeric.events.native.input, e.target); //TODO instead of adding the event here, generate it from the `_historyTableRedo()` function?
             this.onGoingRedo = true;
 
+            // if lastVal is updated in the undo branch, it should be update here too, otherwise backspace could delete two chars (enter 1234, ctrl-z, ctrl-y, backspace)
+            this.lastVal = AutoNumericHelper.getElementValue(e.target);
+            
             return;
         }
 
@@ -6817,7 +6826,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
         }
 
         // Manage the Cut event
-        if ((e.ctrlKey || e.metaKey) && (this.eventKey === AutoNumericEnum.keyName.X || this.eventKey === AutoNumericEnum.keyName.x)) {
+        // Also handle the Ctrl-Del event on windows (Delete words to the right of the cursor) 
+        if (((e.ctrlKey || e.metaKey) && (this.eventKey === AutoNumericEnum.keyName.X || this.eventKey === AutoNumericEnum.keyName.x)) ||
+            (e.ctrlKey && this.eventKey === AutoNumericEnum.keyName.Delete)) {
             // Save the caret position at the start of the selection
             const caretPosition = AutoNumericHelper.getElementSelection(this.domElement).start;
             // Convert the remaining 'formatted' numbers in a Js number
@@ -6826,6 +6837,9 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
             this.set(cutNumber);
             // Set back the initial caret position
             this._setCaretPosition(caretPosition);
+            
+            // update lastVal to detect change in delete/backspace handler
+            this.lastVal = AutoNumericHelper.getElementValue(e.target);
         }
 
         // Manage the reformat when hovered with the Alt key pressed
@@ -7107,6 +7121,8 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
 
             // 4. On a 'normal' non-autoNumeric input, an `input` event is sent when a paste is done. We mimic that.
             this._triggerEvent(AutoNumeric.events.native.input, eventTarget);
+
+            this.lastVal = AutoNumericHelper.getElementValue(eventTarget);  // fix the 'input event sometimes not raised' issue after value is pasted into an empty input
 
             // 5. Return since the job is done
             return;
@@ -7447,6 +7463,7 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
         if (valueHasBeenSet && initialFormattedValue !== targetValue) {
             // On a 'normal' non-autoNumeric input, an `input` event is sent when a paste is done. We mimic that.
             this._triggerEvent(AutoNumeric.events.native.input, eventTarget);
+            this.lastVal = targetValue;  // update it to avoid deleting an extra char when the pasted content is selected and removed by hitting backspace (see also _onKeyDown)
         }
     }
 
