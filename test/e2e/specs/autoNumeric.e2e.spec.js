@@ -273,6 +273,7 @@ const selectors = {
     issue768Submit                    : '#issue_768_submit',
     issue808                          : '#issue_808',
     issue808InputDetector             : '#issue_808_input_detector',
+    issue670                          : '#issue_670',
     issue582                          : '#issue_582',
 };
 
@@ -4045,7 +4046,7 @@ describe('Pasting', () => {
         expect(await issue387inputCancellable.getValue()).toEqual('$220,242.76');
     });
 
-    it('should not be possible to paste an valid number in a readOnly element', async () => {
+    it('should not be possible to paste a valid number in a readOnly element', async () => {
         const readOnlyElement = await $(selectors.readOnlyElement);
         expect(await readOnlyElement.getValue()).toEqual('42.42');
 
@@ -4064,6 +4065,138 @@ describe('Pasting', () => {
         await browser.keys([Key.Home, Key.ArrowRight, Key.Shift, Key.ArrowRight, Key.ArrowRight, Key.Shift]);
         await browser.keys([Key.Control, 'a', 'v', Key.Control]);
         expect(await readOnlyElement.getValue()).toEqual('42.42'); // No changes!
+    });
+
+    it('should not corrupt rawValue on pasting values (issue #670)', async () => {
+        const inputClassic = await $(selectors.inputClassic);
+        const inputToTest = await $(selectors.issue670);
+
+        // 1. Test #670
+
+        // Prepare clipboard
+        await inputClassic.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace]);
+        await browser.keys('123456');
+        expect(await inputClassic.getValue()).toEqual('123456');
+        await sendCtrlChar('a');
+        await sendCtrlChar('c');
+
+        // Set starting value
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace]);
+        await browser.keys('100000');
+        await inputClassic.click();
+        expect(await inputToTest.getValue()).toEqual('$100.000,00');
+        expect(await getNumericString(selectors.issue670)).toEqual('100000');
+
+        // Paste
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        expect(await getCaretStart(selectors.issue670)).toEqual(1);  // The currency sign should not be selected, so that the branch of partial selection is executed in _onPaste
+        await sendCtrlChar('v');
+
+        expect(await inputToTest.getValue()).toEqual('$123.456,00');  // Must be properly formatted
+        expect(await getNumericString(selectors.issue670)).toEqual('123456');  // rawValue (or more precisely getNumericString()=the rawValue converted to string and extraneous zeros removed after the dot) must be correct (e.g.: not "123456.00,")
+
+        // 1a Pasting digits+non-digit characters (123millimeter)
+
+        // Prepare clipboard
+        await inputClassic.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace]);
+        await browser.keys('123millimeter');
+        expect(await inputClassic.getValue()).toEqual('123millimeter');
+        await sendCtrlChar('a');
+        await sendCtrlChar('c');
+
+        // Paste
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        expect(await getCaretStart(selectors.issue670)).toEqual(1);  // The currency sign should not be selected, so that the branch of partial selection is executed in _onPaste
+        await sendCtrlChar('v');
+
+        expect(await inputToTest.getValue()).toEqual('$123,00');  // Value must be properly formatted and changed
+        expect(await getNumericString(selectors.issue670)).toEqual('123');  // rawValue should be consistent with the displayed value
+
+        // 2. Test when the pasted value is outside of the range (and it throws an exception and rawValue should not be changed)
+
+        // Prepare input
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace, Key.Backspace]);
+        await browser.keys('123456');
+        await browser.keys([Key.Tab]);  // Format it
+        expect(await inputToTest.getValue()).toEqual('$123.456,00');  // Value must be properly formatted
+        expect(await getNumericString(selectors.issue670)).toEqual('123456');  // rawValue should be consistent with the displayed value
+
+        // Prepare clipboard
+        await inputClassic.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace]);
+        await browser.keys('-100');
+        expect(await inputClassic.getValue()).toEqual('-100');
+        await sendCtrlChar('a');
+        await sendCtrlChar('c');
+
+        // Paste
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        expect(await getCaretStart(selectors.issue670)).toEqual(1);  // The currency sign should not be selected, so that the branch of partial selection is executed in _onPaste
+        await sendCtrlChar('v');
+
+        expect(await inputToTest.getValue()).toEqual('$123.456,00');  // Value must be properly formatted and not changed
+        expect(await getNumericString(selectors.issue670)).toEqual('123456');  // rawValue should be consistent with the displayed value
+
+        // 3. Test when onInvalidPaste=clamp and the pasted value is outside of the range (and updates the value based on the min/max limits)
+
+        // Update options
+        await browser.execute(domId => {
+            const input = document.querySelector(domId);
+            const an = AutoNumeric.getAutoNumericElement(input);
+            an.update({
+                onInvalidPaste: 'clamp',
+            });
+        }, selectors.issue670);
+
+        // Paste
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        expect(await getCaretStart(selectors.issue670)).toEqual(1);  // The currency sign should not be selected, so that the branch of partial selection is executed in _onPaste
+        await sendCtrlChar('v');
+
+        expect(await inputToTest.getValue()).toEqual('-$10,00');  // Value must be clamped and properly formatted
+        expect(await getNumericString(selectors.issue670)).toEqual('-10');  // rawValue should be consistent with the displayed value
+
+        // 4. Test when onInvalidPaste=ignore and the pasted value is outside of the range (and value should not be changed)
+
+        // Update options
+        await browser.execute(domId => {
+            const input = document.querySelector(domId);
+            const an = AutoNumeric.getAutoNumericElement(input);
+            an.update({
+                onInvalidPaste: 'ignore',
+            });
+        }, selectors.issue670);
+
+        // Prepare input
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        await browser.keys([Key.Backspace, Key.Backspace]);
+        await browser.keys('123456');
+        await browser.keys([Key.Tab]);  // Format it
+        expect(await inputToTest.getValue()).toEqual('$123.456,00');  // Value must be properly formatted
+        expect(await getNumericString(selectors.issue670)).toEqual('123456');  // rawValue should be consistent with the displayed value
+
+        // Paste
+        await inputToTest.click();
+        await sendCtrlChar('a');
+        expect(await getCaretStart(selectors.issue670)).toEqual(1);  // The currency sign should not be selected, so that the branch of partial selection is executed in _onPaste
+        await sendCtrlChar('v');
+
+        expect(await inputToTest.getValue()).toEqual('$123.456,00');  // Value must not be changed
+        expect(await getNumericString(selectors.issue670)).toEqual('123456');  // rawValue should be consistent with the displayed value
     });
 });
 

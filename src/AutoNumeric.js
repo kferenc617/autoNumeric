@@ -6872,7 +6872,6 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
         this._updateInternalProperties(e);
 
         const skip = this._processNonPrintableKeysAndShortcuts(e);
-        delete this.valuePartsBeforePaste;
         const targetValue = AutoNumericHelper.getElementValue(e.target);
         if (skip || targetValue === '' && this.initialValueOnFirstKeydown === '') { // If the user enters skippable keys, or keeps deleting/backspacing into the empty input, no 'formatted' event are sent (cf. issue #621)
             return;
@@ -7376,6 +7375,7 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
 
         // 5. Check if the result is a valid number, if not, drop the paste and do nothing.
         if (!AutoNumericHelper.isNumber(result) || result === '') {
+            this.formatted = true; // This prevents the `keyup` event on the `v` key during a paste to try to format an empty value (compare with 3. above)
             if (this.settings.onInvalidPaste === AutoNumeric.options.onInvalidPaste.error) {
                 AutoNumericHelper.throwError(`The pasted value '${rawPastedText}' would result into an invalid content '${result}'.`); //TODO Should we send a warning instead of throwing an error?
                 //TODO This is not DRY ; refactor with above
@@ -7413,12 +7413,14 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
         let valueHasBeenClamped = false;
         try {
             this.set(result);
+            this.formatted = true; // This prevents the `keyup` event on the `v` key during a paste to try to reformat
             valueHasBeenSet = true;
         } catch (error) {
             let clampedValue;
             switch (this.settings.onInvalidPaste) {
                 case AutoNumeric.options.onInvalidPaste.clamp:
                     clampedValue = AutoNumericHelper.clampToRangeLimits(result, this.settings);
+                    this.formatted = true; // This prevents the `keyup` event on the `v` key during a paste to try to reformat
                     try {
                         this.set(clampedValue);
                     } catch (error) {
@@ -7433,12 +7435,14 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
                 case AutoNumeric.options.onInvalidPaste.truncate:
                 case AutoNumeric.options.onInvalidPaste.replace:
                     // Throw an error message
+                    this.formatted = true; // This prevents the `keyup` event on the `v` key during a paste to try to format and set the value to 0
                     AutoNumericHelper.throwError(`The pasted value '${rawPastedText}' results in a value '${result}' that is outside of the minimum [${this.settings.minimumValue}] and maximum [${this.settings.maximumValue}] value range.`);
                 // Fall through
                 case AutoNumeric.options.onInvalidPaste.ignore:
                 // Do nothing
                 // Fall through
                 default :
+                    this.formatted = true; // This prevents the `keyup` event on the `v` key during a paste to try to format and set the value to 0
                     return; // ...and nothing else should be changed
             }
         }
@@ -8896,30 +8900,6 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
     }
 
     /**
-     * Try to strip pasted value to digits
-     */
-    _checkPaste() {
-        // Do not process anything if the value has already been formatted
-        if (this.formatted) {
-            return;
-        }
-
-        if (!AutoNumericHelper.isUndefined(this.valuePartsBeforePaste)) {
-            const oldParts = this.valuePartsBeforePaste;
-            const [left, right] = this._getLeftAndRightPartAroundTheSelection();
-
-            // Try to strip the pasted value first
-            delete this.valuePartsBeforePaste;
-
-            const modifiedLeftPart = left.substring(0, oldParts[0].length) + AutoNumeric._stripAllNonNumberCharactersExceptCustomDecimalChar(left.substring(oldParts[0].length), this.settings, true, this.isFocused);
-            if (!this._setValueParts(modifiedLeftPart, right, true)) {
-                this._setElementValue(oldParts.join(''), false);
-                this._setCaretPosition(oldParts[0].length);
-            }
-        }
-    }
-
-    /**
      * Return `true` if the given key should be ignored or not.
      *
      * @param {string} eventKeyName
@@ -8949,14 +8929,6 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
      * @private
      */
     _processNonPrintableKeysAndShortcuts(e) {
-        // Catch the ctrl up on ctrl-v
-        if (((e.ctrlKey || e.metaKey) && e.type === 'keyup' && !AutoNumericHelper.isUndefined(this.valuePartsBeforePaste)) || (e.shiftKey && this.eventKey === AutoNumericEnum.keyName.Insert)) {
-            //TODO Move this test inside the `onKeyup` handler
-            this._checkPaste();
-
-            return false;
-        }
-
         // Skip all function keys (F1-F12), Windows keys, tab and other special keys
         if (this.constructor._shouldSkipEventKey(this.eventKey)) {
             return true;
@@ -8981,17 +8953,6 @@ To solve that, you'd need to either set \`decimalPlacesRawValue\` to \`null\`, o
              this.eventKey === AutoNumericEnum.keyName.x)) {
             if (e.type === 'keydown') {
                 this._expandSelectionOnSign();
-            }
-
-            // Try to prevent wrong paste
-            if (this.eventKey === AutoNumericEnum.keyName.v || this.eventKey === AutoNumericEnum.keyName.Insert) {
-                if (e.type === 'keydown' || e.type === 'keypress') {
-                    if (AutoNumericHelper.isUndefined(this.valuePartsBeforePaste)) {
-                        this.valuePartsBeforePaste = this._getLeftAndRightPartAroundTheSelection();
-                    }
-                } else {
-                    this._checkPaste();
-                }
             }
 
             return e.type === 'keydown' || e.type === 'keypress' || this.eventKey === AutoNumericEnum.keyName.c;
